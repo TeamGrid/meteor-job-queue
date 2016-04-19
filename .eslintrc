@@ -1,0 +1,14 @@
+{
+  "extends": "airbnb/base",
+  "plugins": [ "eslint-plugin-meteor" ],
+  "rules": {
+    "semi": 0,
+    "no-param-reassign": [2, { "props": false }],
+    "new-cap": [2, {
+      "capIsNewExceptions": [
+        "Match.Optional",
+        "Match.OneOf"
+      ]
+    }]
+  }
+}
