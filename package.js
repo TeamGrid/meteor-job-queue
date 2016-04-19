@@ -1,6 +1,6 @@
 Package.describe({
   name: 'teamgrid:job-queue',
-  version: '0.0.1',
+  version: '0.0.2',
   // Brief, one-line summary of the package.
   summary: 'Package to create and work on jobs and sync them over oplog',
   // URL to the Git repository containing the source code for this package.
@@ -19,12 +19,4 @@ Package.onUse(function(api) {
   api.use('ecmascript');
   api.use('mongo');
   api.mainModule('src/main.js', 'server');
-});
-
-Package.onTest(function(api) {
-  api.use('ecmascript');
-  api.use('mongo');
-  api.use('practicalmeteor:mocha');
-  api.use('teamgrid:job-queue');
-  api.mainModule('tests/main.js', 'server');
 });
