@@ -48,12 +48,17 @@ export class JobQueue {
   }
 
   enqueueJob(job) {
-    this._options.collection.insert({
+    let type = this.getTypeName(job)
+    if (!type) {
+      Log.warn(
+        `cannot find type for job "${job.constructor.name}". Did you forgot calling "registerType"?`
+      );
+    }
+    this._options.collection.insert(_.extend(job.toObject(), {
+      type,
       createdAt: new Date(),
-      type: this.getTypeName(job),
       failures: 0,
-      job: job.toObject(),
-    })
+    }))
   }
 
   startWorker(options) {
