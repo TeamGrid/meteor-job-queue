@@ -136,9 +136,12 @@ export class JobQueue {
             })
             resolve()
           }).catch((err) => {
-            running--
             this._options.collection.update({ _id: job._id }, {
-              $set: { failedAt: new Date(), running: false },
+              $set: {
+                failedAt: new Date(),
+                running: false,
+                stackTrace: err.stack,
+              },
               $inc: { failures: 1 },
             })
             const j = this._options.collection.findOne({ _id: job._id })
@@ -146,17 +149,19 @@ export class JobQueue {
             if (j.failures < opts.retries) {
               queue.append(job)
             }
+            running--
             reject(err)
           })
         }), Math.floor(Math.random() * 250))
       } catch (err) {
         running--
+        reject(err);
       }
     })
 
     const start = () => {
       for (let i = 1; i <= (opts.concurrency - running); i++) {
-        runJob().then(start)
+        runJob().then(start).catch(start)
       }
     }
 
