@@ -20,6 +20,10 @@ export class Job {
     const job = this._collection.findOne({ _id: this._id })
     return !!job.finishedAt
   }
+
+  process() {
+    throw new Error(`process method not implemented for job type '${this.constructor.name}'`)
+  }
 }
 
 Job.fromDoc = function fromDoc(doc) {
