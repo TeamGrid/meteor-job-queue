@@ -82,6 +82,8 @@ export class JobQueue {
     }, {
       limit: 20,
       sort: { createdAt: 1 },
+      pollingIntervalMs: 1000,
+      disableOplog: false,
     }).observeChanges({
       addedBefore: (_id, job) => {
         queue.append(this._options.collection._transform(_.extend(job, { _id })))
