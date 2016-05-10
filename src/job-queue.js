@@ -71,6 +71,9 @@ export class JobQueue {
     const queue = new ObservableCollection()
     let running = 0
 
+    if (opts.onAdd) queue.on('added', opts.onAdd)
+    if (opts.onRemove) queue.on('removed', opts.onRemove)
+
     this._options.collection.find({
       finishedAt: { $exists: false },
       running: { $ne: true },
@@ -113,13 +116,15 @@ export class JobQueue {
     const runJob = () => new Promise((resolve, reject) => {
       try {
         running++
-        const job = queue.items[0]
+        const jobItem = queue.items[0]
 
-        if (!job) {
+        if (!jobItem) {
           running--
           return
         }
         queue.removeAt(0)
+
+        const job = this._options.collection.findOne({ _id: jobItem._id })
         setTimeout(Meteor.bindEnvironment(() => {
           if (job.isStarted() || job.isFinished()) {
             running--
@@ -129,11 +134,13 @@ export class JobQueue {
             $set: { startedAt: new Date(), running: true },
             $inc: { starts: 1 },
           })
+          if (opts.onStart) opts.onStart(job)
           processJob(job).then((outcome) => {
             running--
             this._options.collection.update({ _id: job._id }, {
               $set: { finishedAt: new Date(), running: false, outcome },
             })
+            if (opts.onFinish) opts.onFinish(this._options.collection.findOne({ _id: job._id }))
             resolve()
           }).catch((err) => {
             this._options.collection.update({ _id: job._id }, {
