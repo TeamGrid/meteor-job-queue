@@ -129,10 +129,10 @@ export class JobQueue {
             $set: { startedAt: new Date(), running: true },
             $inc: { starts: 1 },
           })
-          processJob(job).then(() => {
+          processJob(job).then((outcome) => {
             running--
             this._options.collection.update({ _id: job._id }, {
-              $set: { finishedAt: new Date(), running: false },
+              $set: { finishedAt: new Date(), running: false, outcome },
             })
             resolve()
           }).catch((err) => {
