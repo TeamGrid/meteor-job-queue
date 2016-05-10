@@ -1,9 +1,8 @@
 import { Mongo } from 'meteor/mongo'
 import { Log } from 'meteor/logging'
-import { _ } from 'meteor/underscore'
-import ObservableCollection from 'digitaledgeit-observable-collection'
 
 import { Job } from './job'
+import { Worker } from './worker'
 
 
 export class JobQueue {
@@ -62,119 +61,6 @@ export class JobQueue {
   }
 
   startWorker(options) {
-    const opts = _.defaults(options, {
-      retries: 5,
-      concurrency: 1,
-      retryDelay: 5000, // 5 seconds
-      query: {},
-    })
-    const queue = new ObservableCollection()
-    let running = 0
-
-    if (opts.onAdd) queue.on('added', opts.onAdd)
-    if (opts.onRemove) queue.on('removed', opts.onRemove)
-
-    this._options.collection.find({
-      finishedAt: { $exists: false },
-      running: { $ne: true },
-      failures: { $lt: opts.retries },
-      $and: [opts.query],
-    }, {
-      limit: 20,
-      sort: { createdAt: 1 },
-      pollingIntervalMs: 1000,
-      disableOplog: false,
-    }).observeChanges({
-      addedBefore: (_id, job) => {
-        queue.append(this._options.collection._transform(_.extend(job, { _id })))
-      },
-      removed: (_id) => {
-        queue.find((item, index) => {
-          if (item._id === _id) {
-            queue.removeAt(index)
-            return true
-          }
-          return false
-        })
-      },
-    })
-
-    const processJob = (job) => new Promise((resolve, reject) => {
-      const process = () => {
-        try {
-          job.process().then(resolve).catch(reject)
-        } catch (err) {
-          reject(err)
-        }
-      }
-
-      if (job.failures) {
-        Meteor.setTimeout(process, opts.retryDelay)
-      } else {
-        process()
-      }
-    })
-
-    const runJob = () => new Promise((resolve, reject) => {
-      try {
-        running++
-        const jobItem = queue.items[0]
-
-        if (!jobItem) {
-          running--
-          return
-        }
-        queue.removeAt(0)
-
-        const job = this._options.collection.findOne({ _id: jobItem._id })
-        setTimeout(Meteor.bindEnvironment(() => {
-          if (job.isStarted() || job.isFinished()) {
-            running--
-            return
-          }
-          this._options.collection.update({ _id: job._id }, {
-            $set: { startedAt: new Date(), running: true },
-            $inc: { starts: 1 },
-          })
-          if (opts.onStart) opts.onStart(job)
-          processJob(job).then((outcome) => {
-            running--
-            this._options.collection.update({ _id: job._id }, {
-              $set: { finishedAt: new Date(), running: false, outcome },
-            })
-            if (opts.onFinish) opts.onFinish(this._options.collection.findOne({ _id: job._id }))
-            resolve()
-          }).catch((err) => {
-            this._options.collection.update({ _id: job._id }, {
-              $set: {
-                failedAt: new Date(),
-                running: false,
-                stackTrace: err.stack,
-              },
-              $inc: { failures: 1 },
-            })
-            const j = this._options.collection.findOne({ _id: job._id })
-            if (opts.onFail) opts.onFail(j, err)
-            if (j.failures < opts.retries) {
-              queue.append(job)
-            }
-            running--
-            reject(err)
-          })
-        }), Math.floor(Math.random() * 250))
-      } catch (err) {
-        running--
-        reject(err);
-      }
-    })
-
-    const start = () => {
-      for (let i = 1; i <= (opts.concurrency - running); i++) {
-        runJob().then(start).catch(start)
-      }
-    }
-
-    queue.on('added', start)
-    start()
+    return new Worker(this, options)
   }
 }
