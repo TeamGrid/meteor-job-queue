@@ -65,6 +65,7 @@ export class JobQueue {
     const opts = _.defaults(options, {
       retries: 5,
       concurrency: 1,
+      retryDelay: 5000, // 5 seconds
       query: {},
     })
     const queue = new ObservableCollection()
@@ -97,10 +98,18 @@ export class JobQueue {
     })
 
     const processJob = (job) => new Promise((resolve, reject) => {
-      try {
-        job.process().then(resolve).catch(reject)
-      } catch (err) {
-        reject(err)
+      const process = () => {
+        try {
+          job.process().then(resolve).catch(reject)
+        } catch (err) {
+          reject(err)
+        }
+      }
+
+      if (job.failures) {
+        Meteor.setTimeout(process, opts.retryDelay)
+      } else {
+        process()
       }
     })
 
@@ -138,7 +147,9 @@ export class JobQueue {
               $set: { failedAt: new Date(), running: false },
               $inc: { failures: 1 },
             })
-            if ((job.failures + 1) < opts.retries) {
+            const j = this._options.collection.findOne({ _id: job._id })
+            if (opts.onFail) opts.onFail(j, err)
+            if (j.failures < opts.retries) {
               queue.append(job)
             }
             // console.log('job failed', job._id, err);
