@@ -70,7 +70,6 @@ export class JobQueue {
     })
     const queue = new ObservableCollection()
     let running = 0
-    let count = 0
 
     this._options.collection.find({
       finishedAt: { $exists: false },
@@ -82,11 +81,9 @@ export class JobQueue {
       sort: { createdAt: 1 },
     }).observeChanges({
       addedBefore: (_id, job) => {
-        console.log('added', _id);
         queue.append(this._options.collection._transform(_.extend(job, { _id })))
       },
       removed: (_id) => {
-        console.log('removed', _id);
         queue.find((item, index) => {
           if (item._id === _id) {
             queue.removeAt(index)
@@ -132,11 +129,8 @@ export class JobQueue {
             $set: { startedAt: new Date(), running: true },
             $inc: { starts: 1 },
           })
-          // console.log('starting job', job._id);
           processJob(job).then(() => {
             running--
-            console.log(count++);
-            // console.log('job finished', job._id);
             this._options.collection.update({ _id: job._id }, {
               $set: { finishedAt: new Date(), running: false },
             })
@@ -152,13 +146,11 @@ export class JobQueue {
             if (j.failures < opts.retries) {
               queue.append(job)
             }
-            // console.log('job failed', job._id, err);
             reject(err)
           })
         }), Math.floor(Math.random() * 250))
       } catch (err) {
         running--
-        console.error(err);
       }
     })
 
@@ -170,10 +162,5 @@ export class JobQueue {
 
     queue.on('added', start)
     start()
-
-    // setInterval(() => {
-    //   console.log('queue size: ', queue.items.length);
-    //   console.log('running: ', running);
-    // }, 1000)
   }
 }
