@@ -15,9 +15,6 @@ export class Worker extends EventEmitter {
     const queue = new ObservableCollection()
     let running = 0
 
-    queue.on('added', () => this.emit('add'))
-    queue.on('removed', () => this.emit('remove'))
-
     this._observeHandle = collection.find({
       finishedAt: { $exists: false },
       running: { $ne: true },
@@ -115,11 +112,19 @@ export class Worker extends EventEmitter {
     const start = () => {
       if (this._stopped) return
       for (let i = 1; i <= (opts.concurrency - running); i++) {
-        runJob().then(start).catch(start)
+        runJob().then(start).catch((err) => {
+          start()
+          console.log(err.stack);
+          throw err
+        })
       }
     }
 
-    queue.on('added', start)
+    queue.on('added', (item) => {
+      this.emit('add', item)
+      start()
+    })
+    queue.on('removed', (item) => this.emit('remove', item))
     start()
   }
 
