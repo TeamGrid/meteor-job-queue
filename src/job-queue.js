@@ -25,7 +25,7 @@ export class JobQueue {
       } else {
         jobInstance = typeClass.fromDoc(job)
       }
-      jobInstance._collection = this._options.collection
+      jobInstance._collectionName = this._options.collection._name
       return jobInstance
     }
   }

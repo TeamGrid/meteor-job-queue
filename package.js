@@ -18,5 +18,6 @@ Package.onUse(function(api) {
   api.versionsFrom('1.3.1');
   api.use('ecmascript');
   api.use('mongo');
+  api.use('dburles:mongo-collection-instances@0.3.5');
   api.mainModule('src/main.js', 'server');
 });

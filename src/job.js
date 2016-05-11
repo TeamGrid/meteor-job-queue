@@ -1,6 +1,14 @@
 import { _ } from 'meteor/underscore'
-
+import { Mongo } from 'meteor/mongo'
+import 'meteor/dburles:mongo-collection-instances'
 export class Job {
+  _collection() {
+    if (!this._collectionName) {
+      throw new Error('cannot get collection before the name was defined')
+    }
+    return Mongo.Collection.get(this._collectionName)
+  }
+
   constructor(data) {
     this.data = data
   }
@@ -12,12 +20,12 @@ export class Job {
   }
 
   isStarted() {
-    const job = this._collection.findOne({ _id: this._id })
+    const job = this._collection().findOne({ _id: this._id })
     return !!job.running
   }
 
   isFinished() {
-    const job = this._collection.findOne({ _id: this._id })
+    const job = this._collection().findOne({ _id: this._id })
     return !!job.finishedAt
   }
 
