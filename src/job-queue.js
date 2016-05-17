@@ -30,6 +30,10 @@ export class JobQueue {
     }
   }
 
+  getCollection() {
+    return this._options.collection
+  }
+
   getTypeClass(name) {
     return this._types[name]
   }

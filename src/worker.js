@@ -5,17 +5,18 @@ import { EventEmitter } from 'events'
 export class Worker extends EventEmitter {
   constructor(jobQueue, options) {
     super()
-    const collection = (jobQueue._options && jobQueue._options.collection) || jobQueue
-    const opts = _.defaults(options, {
+    this._collection = (jobQueue._options && jobQueue._options.collection) || jobQueue
+    const opts = this._options = _.defaults(options, {
       retries: 5,
       concurrency: 1,
       retryDelay: 5000, // 5 seconds
       query: {},
     })
-    const queue = new ObservableCollection()
+    this._queue = new ObservableCollection()
     let running = 0
+    this._runningJobIds = []
 
-    this._observeHandle = collection.find({
+    this._observeHandle = this._collection.find({
       finishedAt: { $exists: false },
       running: { $ne: true },
       failures: { $lt: opts.retries },
@@ -27,12 +28,12 @@ export class Worker extends EventEmitter {
       disableOplog: false,
     }).observeChanges({
       addedBefore: (_id, job) => {
-        queue.append(collection._transform(_.extend(job, { _id })))
+        this._queue.append(this._collection._transform(_.extend(job, { _id })))
       },
       removed: (_id) => {
-        queue.find((item, index) => {
+        this._queue.find((item, index) => {
           if (item._id === _id) {
-            queue.removeAt(index)
+            this._queue.removeAt(index)
             return true
           }
           return false
@@ -59,34 +60,41 @@ export class Worker extends EventEmitter {
     const runJob = () => new Promise((resolve, reject) => {
       try {
         running++
-        const jobItem = queue.items[0]
+        const jobItem = this._queue.items[0]
 
         if (!jobItem) {
           running--
           return
         }
-        queue.removeAt(0)
+        this._queue.removeAt(0)
+        this._addRunningJob(jobItem._id)
 
-        const job = collection.findOne({ _id: jobItem._id })
+        const job = this._collection.findOne({ _id: jobItem._id })
         setTimeout(Meteor.bindEnvironment(() => {
           if (job.isStarted() || job.isFinished()) {
+            this._removeRunningJob(job._id)
             running--
             return
           }
-          collection.update({ _id: job._id }, {
-            $set: { startedAt: new Date(), running: true },
+          this._collection.update({ _id: job._id }, {
+            $set: {
+              startedAt: new Date(),
+              running: true,
+              instanceId: opts.instanceId,
+            },
             $inc: { starts: 1 },
           })
           this.emit('start', job)
           processJob(job).then((outcome) => {
+            this._removeRunningJob(job._id)
             running--
-            collection.update({ _id: job._id }, {
+            this._collection.update({ _id: job._id }, {
               $set: { finishedAt: new Date(), running: false, outcome },
             })
-            this.emit('finish', collection.findOne({ _id: job._id }))
+            this.emit('finish', this._collection.findOne({ _id: job._id }))
             resolve()
           }).catch((err) => {
-            collection.update({ _id: job._id }, {
+            this._collection.update({ _id: job._id }, {
               $set: {
                 failedAt: new Date(),
                 running: false,
@@ -94,11 +102,12 @@ export class Worker extends EventEmitter {
               },
               $inc: { failures: 1 },
             })
-            const j = collection.findOne({ _id: job._id })
+            const j = this._collection.findOne({ _id: job._id })
             this.emit('failure', j, err)
             if (j.failures < opts.retries) {
-              queue.append(job)
+              this._queue.append(job)
             }
+            this._removeRunningJob(j._id)
             running--
             reject(err)
           })
@@ -114,24 +123,47 @@ export class Worker extends EventEmitter {
       for (let i = 1; i <= (opts.concurrency - running); i++) {
         runJob().then(start).catch((err) => {
           start()
-          console.log(err.stack);
           throw err
         })
       }
     }
 
-    queue.on('added', (item) => {
+    this._queue.on('added', (item) => {
       this.emit('add', item)
       start()
     })
-    queue.on('removed', (item) => this.emit('remove', item))
+    this._queue.on('removed', (item) => this.emit('remove', item))
     start()
   }
 
-  stop() {
-    if (this._observeHandle) {
-      this._observeHandle.stop()
-      this._stopped = true
+  _addRunningJob(id) {
+    this._runningJobIds.push(id)
+  }
+
+  _removeRunningJob(id) {
+    const index = this._runningJobIds.indexOf(id)
+    if (index > -1) this._runningJobIds.splice(index, 1)
+  }
+
+  stop(force = false) {
+    if (this._observeHandle) this._observeHandle.stop()
+    if (this._queue) this._queue.removeAll()
+
+    if (force) {
+      console.log('forced kill');
+      this._collection.update({
+        _id: { $in: this._runningJobIds },
+        running: true,
+      }, {
+        $set: {
+          failedAt: new Date(),
+          running: false,
+          stackTrace: 'forced kill',
+        },
+        $inc: { failures: 1 },
+      }, { multi: true })
     }
+
+    this._stopped = true
   }
 }
