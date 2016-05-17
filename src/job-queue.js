@@ -12,8 +12,8 @@ export class JobQueue {
     this._options = options || {}
     if (!this._options.collection) this._options.collection = new Mongo.Collection('job_queue')
 
-    const _transform = this._options.collection._transform
-    this._options.collection._transform = (doc) => {
+    const _transform = this.getCollection()._transform
+    this.getCollection()._transform = (doc) => {
       const job = _transform ? _transform(doc) : doc
       const typeClass = this.getTypeClass(doc.type)
       let jobInstance
@@ -25,7 +25,7 @@ export class JobQueue {
       } else {
         jobInstance = typeClass.fromDoc(job)
       }
-      jobInstance._collectionName = this._options.collection._name
+      jobInstance._collectionName = this.getCollection()._name
       return jobInstance
     }
   }
@@ -51,17 +51,49 @@ export class JobQueue {
   }
 
   enqueueJob(job) {
-    let type = this.getTypeName(job)
+    const type = this.getTypeName(job)
+    const collection = this.getCollection()
     if (!type) {
       Log.warn(
         `cannot find type for job "${job.constructor.name}". Did you forgot calling "registerType"?`
       );
     }
-    this._options.collection.insert(_.extend(job.toObject(), {
+
+    if (job.rerunThreshold) {
+      const lastJob = collection.findOne({
+        $and: [job.findSimilar(), {
+          type,
+          doneBy: { $exists: false},
+          createdAt: { $gte: new Date(Date.now() - job.rerunThreshold) },
+        }]
+      })
+      if (lastJob) {
+        collection.insert(_.extend(job.toObject(), {
+          type,
+          doneBy: lastJob._id,
+          createdAt: new Date(),
+          failures: 0,
+        }))
+        return
+      }
+    }
+
+    const jobId = collection.insert(_.extend(job.toObject(), {
       type,
       createdAt: new Date(),
       failures: 0,
     }))
+    if (job.stopSimilar) {
+      const done = collection.update({
+        $and: [job.findSimilar(), {
+          doneBy: { $exists: false },
+          finishedAt: { $exists: false },
+          running: { $ne: true },
+          _id: { $ne: jobId },
+          type,
+        }]
+      }, { $set: { doneBy: jobId } }, { multi: true })
+    }
   }
 
   startWorker(options) {

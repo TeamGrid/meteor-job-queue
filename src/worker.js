@@ -17,6 +17,7 @@ export class Worker extends EventEmitter {
     this._runningJobIds = []
 
     this._observeHandle = this._collection.find({
+      doneBy: { $exists: false },
       finishedAt: { $exists: false },
       running: { $ne: true },
       failures: { $lt: opts.retries },

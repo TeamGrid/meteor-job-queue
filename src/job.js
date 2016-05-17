@@ -29,6 +29,10 @@ export class Job {
     return !!job.finishedAt
   }
 
+  findSimilar() {
+    return { data: this.data }
+  }
+
   process() {
     throw new Error(`process method not implemented for job type '${this.constructor.name}'`)
   }
