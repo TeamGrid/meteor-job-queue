@@ -74,7 +74,7 @@ export class JobQueue {
           createdAt: new Date(),
           failures: 0,
         }))
-        return
+        return lastJob._id
       }
     }
 
@@ -84,7 +84,7 @@ export class JobQueue {
       failures: 0,
     }))
     if (job.stopSimilar) {
-      const done = collection.update({
+      collection.update({
         $and: [job.findSimilar(), {
           doneBy: { $exists: false },
           finishedAt: { $exists: false },
@@ -94,6 +94,7 @@ export class JobQueue {
         }]
       }, { $set: { doneBy: jobId } }, { multi: true })
     }
+    return jobId
   }
 
   startWorker(options) {
