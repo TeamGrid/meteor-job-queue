@@ -1,5 +1,6 @@
 import { _ } from 'meteor/underscore'
 import { Mongo } from 'meteor/mongo'
+import { Meteor } from 'meteor/meteor'
 import 'meteor/dburles:mongo-collection-instances'
 export class Job {
   _collection() {
@@ -12,7 +13,7 @@ export class Job {
   constructor(data) {
     this.data = data
     this.updateProgressThrottled = _.throttle(
-      this.updateProgress.bind(this), this.getUpdateTimeout())
+      Meteor.bindEnvironment(this.updateProgress.bind(this)), this.getUpdateTimeout())
   }
 
   getUpdateTimeout() {
@@ -55,14 +56,61 @@ export class Job {
     })
   }
 
-  setProgress(current, finish, force) {
-    if (!finish) return
-    this.progress = {
-      current,
-      finish,
-      percent: Math.floor(100 / finish * current),
+  increaseProgress(value = 1, force = false) {
+    if (!this.progress) this.progress = {}
+    if (!this.progress.current) {
+      this.progress.current = value
+    } else {
+      this.progress.current += value
     }
-    if (this._collection()) {
+
+    if (this.progress.finish) {
+      this.progress.percent = Math.floor(100 / this.progress.finish * (this.progress.current || 0))
+    }
+
+    if (this._collectionName) {
+      if (force) {
+        this.updateProgress()
+      } else {
+        this.updateProgressThrottled()
+      }
+    }
+  }
+
+  increaseFinish(value = 1, force = false) {
+    if (!this.progress) this.progress = {}
+    if (!this.progress.finish) {
+      this.progress.finish = value
+    } else {
+      this.progress.finish += value
+    }
+
+    if (this.progress.finish) {
+      this.progress.percent = Math.floor(100 / this.progress.finish * (this.progress.current || 0))
+    }
+
+    if (this._collectionName) {
+      if (force) {
+        this.updateProgress()
+      } else {
+        this.updateProgressThrottled()
+      }
+    }
+  }
+
+  setProgress(current, finish, force = false) {
+    if (!this.progress) this.progress = {}
+    if (!finish && current) {
+      this.progress.finish = current
+    } else {
+      this.progress.current = current
+      this.progress.finish = finish
+    }
+    if (!this.progress.current) this.progress.current = 0
+
+    this.progress.percent = Math.floor(100 / this.progress.finish * (this.progress.current || 0))
+
+    if (this._collectionName) {
       if (force) {
         this.updateProgress()
       } else {
