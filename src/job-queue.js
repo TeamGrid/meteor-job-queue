@@ -1,5 +1,6 @@
 import { Mongo } from 'meteor/mongo'
 import { Log } from 'meteor/logging'
+import { _ } from 'meteor/underscore'
 
 import { Job } from './job'
 import { Worker } from './worker'
@@ -63,9 +64,9 @@ export class JobQueue {
       const lastJob = collection.findOne({
         $and: [job.findSimilar(), {
           type,
-          doneBy: { $exists: false},
+          doneBy: { $exists: false },
           createdAt: { $gte: new Date(Date.now() - job.rerunThreshold) },
-        }]
+        }],
       })
       if (lastJob) {
         collection.insert(_.extend(job.toObject(), {
@@ -91,7 +92,7 @@ export class JobQueue {
           running: { $ne: true },
           _id: { $ne: jobId },
           type,
-        }]
+        }],
       }, { $set: { doneBy: jobId } }, { multi: true })
     }
     return jobId

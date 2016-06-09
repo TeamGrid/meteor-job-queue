@@ -1,6 +1,7 @@
 import { _ } from 'meteor/underscore'
 import ObservableCollection from 'digitaledgeit-observable-collection'
 import { EventEmitter } from 'events'
+import { Meteor } from 'meteor/meteor'
 
 export class Worker extends EventEmitter {
   constructor(jobQueue, options) {
@@ -151,7 +152,6 @@ export class Worker extends EventEmitter {
     if (this._queue) this._queue.removeAll()
 
     if (force) {
-      console.log('forced kill');
       this._collection.update({
         _id: { $in: this._runningJobIds },
         running: true,
