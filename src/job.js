@@ -11,12 +11,22 @@ export class Job {
 
   constructor(data) {
     this.data = data
+    this.updateProgressThrottled = _.throttle(
+      this.updateProgress.bind(this), this.getUpdateTimeout())
+  }
+
+  getUpdateTimeout() {
+    return this.updateTimeout || 1000
   }
 
   toObject() {
-    return {
+    const job = {
       data: this.data,
     }
+    if (this.progress) {
+      job.progress = this.progress
+    }
+    return job
   }
 
   isStarted() {
@@ -35,6 +45,30 @@ export class Job {
 
   process() {
     throw new Error(`process method not implemented for job type '${this.constructor.name}'`)
+  }
+
+  updateProgress() {
+    this._collection().update({ _id: this._id }, {
+      $set: {
+        progress: this.progress,
+      },
+    })
+  }
+
+  setProgress(current, finish, force) {
+    if (!finish) return
+    this.progress = {
+      current,
+      finish,
+      percent: Math.floor(100 / finish * current),
+    }
+    if (this._collection()) {
+      if (force) {
+        this.updateProgress()
+      } else {
+        this.updateProgressThrottled()
+      }
+    }
   }
 }
 
