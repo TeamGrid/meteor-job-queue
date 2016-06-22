@@ -1,6 +1,6 @@
 Package.describe({
   name: 'teamgrid:job-queue',
-  version: '0.1.1',
+  version: '0.1.2',
   // Brief, one-line summary of the package.
   summary: 'Package to create and work on jobs and sync them over oplog',
   // URL to the Git repository containing the source code for this package.
@@ -15,7 +15,7 @@ Npm.depends({
 })
 
 Package.onUse(function(api) {
-  api.versionsFrom('1.3.1');
+  api.versionsFrom('1.3.3.1');
   api.use('ecmascript');
   api.use('mongo');
   api.use('dburles:mongo-collection-instances@0.3.5');

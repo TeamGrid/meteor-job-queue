@@ -11,8 +11,18 @@ export class Worker extends EventEmitter {
       retries: 5,
       concurrency: 1,
       retryDelay: 5000, // 5 seconds
+      disableOplog: false,
+      pollingIntervalMs: 1000,
       query: {},
     })
+
+    const queryOptions = (() => {
+      const obj = {}
+      if (opts.pollingIntervalMs) obj.pollingIntervalMs = opts.pollingIntervalMs
+      obj.disableOplog = !!opts.disableOplog
+      return obj
+    })()
+
     this._queue = new ObservableCollection()
     let running = 0
     this._runningJobIds = []
@@ -23,12 +33,7 @@ export class Worker extends EventEmitter {
       running: { $ne: true },
       failures: { $lt: opts.retries },
       $and: [opts.query],
-    }, {
-      limit: 20,
-      sort: { createdAt: 1 },
-      pollingIntervalMs: 1000,
-      disableOplog: false,
-    }).observeChanges({
+    }, queryOptions).observeChanges({
       addedBefore: (_id, job) => {
         this._queue.append(this._collection._transform(_.extend(job, { _id })))
       },
