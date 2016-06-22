@@ -20,6 +20,8 @@ export class Worker extends EventEmitter {
       const obj = {}
       if (opts.pollingIntervalMs) obj.pollingIntervalMs = opts.pollingIntervalMs
       obj.disableOplog = !!opts.disableOplog
+      if (opts.queueSize) obj.limit = opts.queueSize
+      obj.sort = { createdAt: 1 }
       return obj
     })()
 
@@ -34,7 +36,7 @@ export class Worker extends EventEmitter {
       failures: { $lt: opts.retries },
       $and: [opts.query],
     }, queryOptions).observeChanges({
-      addedBefore: (_id, job) => {
+      added: (_id, job) => {
         this._queue.append(this._collection._transform(_.extend(job, { _id })))
       },
       removed: (_id) => {
