@@ -50,19 +50,20 @@ export class Worker extends EventEmitter {
       },
     })
 
-    const processJob = (job) => new Promise((resolve, reject) => {
-      const process = () => {
-        try {
+    const processJob = (job, registered, started) => new Promise((resolve, reject) => {
+      try {
+        const startJob = () => {
+          started()
           job.process().then(resolve).catch(reject)
-        } catch (err) {
-          reject(err)
         }
-      }
-
-      if (job.failures) {
-        Meteor.setTimeout(process, opts.retryDelay)
-      } else {
-        process()
+        registered()
+        if (job.failures) {
+          Meteor.setTimeout(startJob, opts.retryDelay)
+        } else {
+          startJob()
+        }
+      } catch(err) {
+        reject(err)
       }
     })
 
@@ -94,7 +95,13 @@ export class Worker extends EventEmitter {
             $inc: { starts: 1 },
           })
           this.emit('start', job)
-          processJob(job).then((outcome) => {
+          processJob(job, () => {
+            // registered
+            running--
+          }, () => {
+            // started
+            running++
+          }).then((outcome) => {
             this._removeRunningJob(job._id)
             running--
             this._collection.update({ _id: job._id }, {
