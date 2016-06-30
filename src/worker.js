@@ -21,7 +21,10 @@ export class Worker extends EventEmitter {
       if (opts.pollingIntervalMs) obj.pollingIntervalMs = opts.pollingIntervalMs
       obj.disableOplog = !!opts.disableOplog
       if (opts.queueSize) obj.limit = opts.queueSize
-      obj.sort = { createdAt: 1 }
+      obj.sort = {
+        failures: 1,
+        createdAt: 1,
+      }
       return obj
     })()
 
@@ -56,10 +59,11 @@ export class Worker extends EventEmitter {
           started()
           job.process().then(resolve).catch(reject)
         }
-        registered()
         if (job.failures) {
+          registered(true)
           Meteor.setTimeout(startJob, opts.retryDelay)
         } else {
+          registered(false)
           startJob()
         }
       } catch(err) {
@@ -95,8 +99,9 @@ export class Worker extends EventEmitter {
             $inc: { starts: 1 },
           })
           this.emit('start', job)
-          processJob(job, () => {
+          processJob(job, (delayed) => {
             // registered
+            if (delayed) start()
             running--
           }, () => {
             // started
