@@ -93,7 +93,7 @@ export class JobQueue {
           _id: { $ne: jobId },
           type,
         }],
-      }, { $set: { doneBy: jobId } }, { multi: true })
+      }, { $set: { doneBy: jobId, finishedAt: new Date() } }, { multi: true })
     }
     return jobId
   }
