@@ -79,6 +79,19 @@ export class JobQueue {
       }
     }
 
+    if (job.noSimilar) {
+      const lastJob = collection.findOne({
+        $and: [job.findSimilar(), {
+          type,
+          doneBy: { $exists: false },
+          finishedAt: { $exists: false },
+        }],
+      }, { fields: { _id: 1 } })
+      if (lastJob) {
+        return lastJob._id
+      }
+    }
+
     const jobId = collection.insert(_.extend(job.toObject(), {
       type,
       createdAt: new Date(),
