@@ -85,6 +85,8 @@ export class JobQueue {
           type,
           doneBy: { $exists: false },
           finishedAt: { $exists: false },
+          running: { $ne: true },
+          failedAt: { $exists: false },
         }],
       }, { fields: { _id: 1 } })
       if (lastJob) {
