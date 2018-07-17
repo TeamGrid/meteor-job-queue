@@ -14,7 +14,13 @@ export class Worker extends EventEmitter {
       disableOplog: false,
       pollingIntervalMs: 1000,
       query: {},
+      delay: () => Math.floor(Math.random() * 250),
     })
+
+    const calcJobDelay = () => {
+      if (typeof opts.delay === 'function') return opts.delay()
+      return opts.delay
+    }
 
     const queryOptions = (() => {
       const obj = {}
@@ -132,7 +138,7 @@ export class Worker extends EventEmitter {
             running--
             reject(err)
           })
-        }), Math.floor(Math.random() * 250))
+        }), calcJobDelay())
       } catch (err) {
         running--
         reject(err);
