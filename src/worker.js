@@ -150,7 +150,6 @@ export class Worker extends EventEmitter {
       for (let i = 1; i <= (opts.concurrency - running); i++) {
         runJob().then(start).catch((err) => {
           start()
-          throw err
         })
       }
     }
